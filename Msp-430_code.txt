@@ -1,0 +1,60 @@
+
+#include <msp430.h>
+
+int main(void)
+{
+    WDTCTL = WDTPW | WDTHOLD;  // Stop watchdog timer
+
+    // Configure PIR sensor input on P1.3
+    P1DIR &= ~BIT3;
+    P1REN &= ~BIT3;
+
+    // Configure UART pins for MSP430G2553
+    P1SEL  |= BIT1 | BIT2;
+    P1SEL2 |= BIT1 | BIT2;
+
+    // Configure USCI UART: 9600 baud at 1 MHz SMCLK
+    UCA0CTL1 |= UCSWRST;
+    UCA0CTL1 = UCSSEL_2 | UCSWRST;
+    UCA0BR0 = 104;
+    UCA0BR1 = 0;
+    UCA0MCTL = UCBRS0;
+    UCA0CTL1 &= ~UCSWRST;
+
+    // Initialize previous occupancy state
+    unsigned char previousState = 2;
+
+    while (1)
+    {
+        unsigned char currentState = (P1IN & BIT3) ? 1 : 0;
+
+        // Transmit only when the state changes
+        if (currentState != previousState)
+        {
+            if (currentState == 1)
+            {
+                const char message[] = "OCCUPIED\r\n";
+
+                unsigned int i;
+                for (i = 0; message[i] != '\0'; i++)
+                {
+                    while (!(IFG2 & UCA0TXIFG));
+                    UCA0TXBUF = message[i];
+                }
+            }
+            else
+            {
+                const char message[] = "VACANT\r\n";
+
+                unsigned int i;
+                for (i = 0; message[i] != '\0'; i++)
+                {
+                    while (!(IFG2 & UCA0TXIFG));
+                    UCA0TXBUF = message[i];
+                }
+            }
+
+            previousState = currentState;
+        }
+    }
+}
